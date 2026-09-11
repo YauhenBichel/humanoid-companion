@@ -1,0 +1,23 @@
+# environments and caches
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+dist/
+
+# training and demo outputs (written to the working directory)
+/runs/
+/exports/
+/demo/
+*.mp4
+!docs/media/*.mp4
+/sim-in-the-loop.json
+/demo.json
+/brain-smoke.md
+/conversation-smoke.*
+/voice-latency.md
+/speed-sweep-*.md
+/speed-sweep-*.json
+/gesture-stability.md
+
+.DS_Store

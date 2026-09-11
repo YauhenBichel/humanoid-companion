@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Humanoid face</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05070a; overflow: hidden; font-family: system-ui, sans-serif; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #caption { position: fixed; left: 0; right: 0; bottom: 6vh; text-align: center; color: #cfe9ff;
+             font-size: clamp(14px, 3.2vw, 28px); padding: 0 6vw; opacity: 0; transition: opacity .3s; }
+  #wake { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+          color: #7fd8ff; font-size: clamp(14px, 3vw, 24px); background: rgba(5,7,10,.85); cursor: pointer; }
+  #status { position: fixed; top: 10px; right: 14px; color: #3a5566; font-size: 12px; }
+  /* ?view=robot: face on the left, the simulated body's camera on the right */
+  body.robot canvas { width: 50vw; }
+  body.robot #caption { right: 50vw; }
+  #body { display: none; }
+  body.robot #body { display: block; position: fixed; top: 0; right: 0; width: 50vw; height: 100vh;
+                     object-fit: contain; background: #0b0e12; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<img id="body" alt="">
+<div id="caption"></div>
+<div id="status">connecting…</div>
+<div id="wake">click to wake the face (lets the browser play its voice)</div>
+<script>
+// The robot's face. State comes from the face server over server-sent events:
+//   {type: "state", expression, caption}                 change expression / caption
+//   {type: "say", id, audio, caption, expression}        play audio, move the mouth with its loudness
+// When an utterance finishes, the page POSTs /played {id} so the runtime knows it may listen again.
+// The expression table lives in expressions.json (shared with face/render.py); the server puts it here.
+const EXPRESSIONS = /*EXPRESSIONS*/{};
+const c = document.getElementById("c"), g = c.getContext("2d");
+const captionEl = document.getElementById("caption"), statusEl = document.getElementById("status");
+let target = EXPRESSIONS.neutral, cur = {...target}, name = "neutral";
+let blink = 0, nextBlink = performance.now() + 2500, gaze = [0, 0], gazeTarget = [0, 0], nextGaze = 0;
+let mouthOpen = 0, audioCtx = null, analyser = null, speaking = null;
+
+if (new URLSearchParams(location.search).get("view") === "robot") {
+  document.body.classList.add("robot"); document.getElementById("body").src = "/body.mjpg";
+}
+function resize() { c.width = c.clientWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio; }
+addEventListener("resize", resize); resize();
+
+function setExpression(e) { if (EXPRESSIONS[e]) { name = e; target = EXPRESSIONS[e]; } }
+function setCaption(t) { captionEl.textContent = t || ""; captionEl.style.opacity = t ? 1 : 0; }
+
+function wake() {
+  audioCtx = new AudioContext(); analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024;
+  analyser.connect(audioCtx.destination); document.getElementById("wake").remove();
+}
+// ?kiosk=1: the head display's browser is started with autoplay allowed, so no click is needed.
+if (new URLSearchParams(location.search).has("kiosk")) wake();
+else document.getElementById("wake").onclick = wake;
+
+async function say(msg) {
+  setExpression(msg.expression || "neutral"); setCaption(msg.caption);
+  const done = () => fetch("/played", {method: "POST", headers: {"content-type": "application/json"},
+                                        body: JSON.stringify({id: msg.id})});
+  if (!audioCtx) { setTimeout(done, 1500); return; }  // not woken: show the caption, skip the sound
+  const buf = await audioCtx.decodeAudioData(await (await fetch(msg.audio)).arrayBuffer());
+  const src = audioCtx.createBufferSource(); src.buffer = buf; src.connect(analyser);
+  speaking = src; src.onended = () => { speaking = null; done(); }; src.start();
+}
+
+function loudness() {
+  if (!speaking || !analyser) return 0;
+  const a = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(a);
+  let s = 0; for (const x of a) s += x * x;
+  return Math.min(1, Math.sqrt(s / a.length) * 6);
+}
+
+const lerp = (a, b, k) => a + (b - a) * k;
+function frame(t) {
+  for (const k of ["open", "w", "tilt", "curve", "mw"]) cur[k] = lerp(cur[k], target[k], 0.15);
+  if (t > nextBlink) { blink = 1; nextBlink = t + 2500 + Math.random() * 3500; }
+  blink = Math.max(0, blink - 0.12);
+  if (t > nextGaze) { gazeTarget = [(Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.25]; nextGaze = t + 1500 + Math.random() * 2500; }
+  const look = target.look;
+  gaze = [lerp(gaze[0], look[0] + gazeTarget[0], 0.08), lerp(gaze[1], look[1] + gazeTarget[1], 0.08)];
+  mouthOpen = lerp(mouthOpen, loudness(), 0.5);
+
+  const W = c.width, H = c.height, u = Math.min(W, H) / 10;
+  g.fillStyle = "#05070a"; g.fillRect(0, 0, W, H);
+  g.fillStyle = g.strokeStyle = "#7fd8ff"; g.lineCap = "round";
+  g.shadowColor = "#3fb6ff"; g.shadowBlur = u * 0.6;
+  const eyeH = u * 1.6 * cur.open * (1 - blink * (name === "sleeping" ? 0 : 1)), eyeW = u * 1.2 * cur.w;
+  for (const side of [-1, 1]) {
+    const x = W / 2 + side * u * 2.2 + gaze[0] * u, y = H * 0.42 + gaze[1] * u;
+    if (target.arc) {                      // happy: upturned arcs
+      g.lineWidth = u * 0.35; g.beginPath(); g.arc(x, y + u * 0.3, eyeW * 0.55, Math.PI * 1.15, Math.PI * 1.85); g.stroke();
+    } else {
+      g.save(); g.translate(x, y); g.rotate(side * -cur.tilt);
+      const h = Math.max(u * 0.08, eyeH);
+      g.beginPath(); g.roundRect(-eyeW / 2, -h / 2, eyeW, h, Math.min(eyeW, h) / 2); g.fill(); g.restore();
+    }
+    if (target.brows) {                    // sad: brows rising towards the middle
+      g.lineWidth = u * 0.22; g.beginPath();
+      // inner end (towards the nose) high, outer end low; the other way round reads as angry
+      g.moveTo(x - side * eyeW * 0.6, y - u * 1.45); g.lineTo(x + side * eyeW * 0.6, y - u * 1.05); g.stroke();
+    }
+  }
+  const mx = W / 2, my = H * 0.7, mw = u * 2.2 * cur.mw;
+  g.lineWidth = u * 0.28;
+  if (mouthOpen > 0.04 || target.o) {      // speaking or surprised: an open mouth
+    const open = target.o ? u * 0.9 : u * (0.15 + 1.3 * mouthOpen);
+    g.beginPath(); g.ellipse(mx, my, target.o ? u * 0.55 : mw / 2, open / 2, 0, 0, Math.PI * 2); g.fill();
+  } else {                                 // a curve: smile > 0, frown < 0
+    g.beginPath(); g.moveTo(mx - mw / 2, my); g.quadraticCurveTo(mx, my + cur.curve * u * 1.2, mx + mw / 2, my); g.stroke();
+  }
+  g.shadowBlur = 0;
+  if (target.dots) { for (let i = 0; i < 3; i++) { g.globalAlpha = 0.3 + 0.7 * ((Math.floor(t / 300) % 3) === i);
+    g.beginPath(); g.arc(W / 2 + u * 3.6 + i * u * 0.5, H * 0.2, u * 0.13, 0, 7); g.fill(); } g.globalAlpha = 1; }
+  if (target.ring) { g.lineWidth = u * 0.08; g.globalAlpha = 0.35 + 0.25 * Math.sin(t / 250);
+    g.beginPath(); g.arc(W / 2, H * 0.52, u * 3.7, 0, 7); g.stroke(); g.globalAlpha = 1; }
+  if (target.zzz) { g.font = `${u * 0.7}px system-ui`; g.globalAlpha = 0.5 + 0.5 * Math.sin(t / 600);
+    g.fillText("z", W / 2 + u * 3.5, H * 0.25); g.fillText("z", W / 2 + u * 4.1, H * 0.17); g.globalAlpha = 1; }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ?expression=<name>&caption=<text>: start in that state (settled, no transition).
+// ?static=1: no connection to the server (screenshots, trying a display without the robot).
+const params = new URLSearchParams(location.search);
+if (params.has("expression")) { setExpression(params.get("expression")); Object.assign(cur, target); }
+if (params.has("caption")) setCaption(params.get("caption"));
+
+function connect() {
+  const es = new EventSource("/events");
+  es.onopen = () => { statusEl.textContent = ""; };
+  es.onerror = () => { statusEl.textContent = "reconnecting…"; };
+  es.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "state") { setExpression(msg.expression); if ("caption" in msg) setCaption(msg.caption); }
+    if (msg.type === "say") say(msg);
+  };
+}
+if (params.has("static")) statusEl.textContent = ""; else connect();
+</script>
+</body>
+</html>

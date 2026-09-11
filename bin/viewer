@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Live MuJoCo viewer on macOS: run_sim --viewer under mjpython (the bundled policy unless --policy).
+#   bin/viewer --vx 0.4 --seconds 20
+#   bin/viewer --instruction "walk forward, then turn right"
+# Why the wrapper: mjpython loads the venv's Python as a library and needs libpython3.12.dylib,
+# which uv-managed Pythons keep in their own lib directory, not in the venv
+# ("Library not loaded: @rpath/libpython3.12.dylib").
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LIBDIR=$("$ROOT/.venv/bin/python" -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')
+export DYLD_LIBRARY_PATH="$LIBDIR${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+cd "$ROOT"
+exec "$ROOT/.venv/bin/mjpython" -m humanoid_companion.run_sim --viewer "$@"

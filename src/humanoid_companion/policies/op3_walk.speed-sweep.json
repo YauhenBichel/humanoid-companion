@@ -1,0 +1,81 @@
+{
+  "policy": "op3_walk.npz",
+  "usable_range": [
+    0.3,
+    0.8
+  ],
+  "rows": [
+    {
+      "command_vx": 0.0,
+      "achieved_vx": -0.001,
+      "lateral_m": 0.0001,
+      "yaw_change_rad": -0.0012,
+      "safety_stops": [],
+      "seconds": 5.0
+    },
+    {
+      "command_vx": 0.1,
+      "achieved_vx": -0.0,
+      "lateral_m": -0.0001,
+      "yaw_change_rad": -0.0104,
+      "safety_stops": [],
+      "seconds": 5.0
+    },
+    {
+      "command_vx": 0.2,
+      "achieved_vx": 0.001,
+      "lateral_m": -0.0004,
+      "yaw_change_rad": -0.0288,
+      "safety_stops": [],
+      "seconds": 5.0
+    },
+    {
+      "command_vx": 0.3,
+      "achieved_vx": 0.288,
+      "lateral_m": -0.0081,
+      "yaw_change_rad": 0.0048,
+      "safety_stops": [],
+      "seconds": 5.0
+    },
+    {
+      "command_vx": 0.4,
+      "achieved_vx": 0.393,
+      "lateral_m": -0.3528,
+      "yaw_change_rad": -0.1021,
+      "safety_stops": [],
+      "seconds": 5.0
+    },
+    {
+      "command_vx": 0.5,
+      "achieved_vx": 0.513,
+      "lateral_m": -0.1048,
+      "yaw_change_rad": -0.1044,
+      "safety_stops": [],
+      "seconds": 5.0
+    },
+    {
+      "command_vx": 0.8,
+      "achieved_vx": 0.639,
+      "lateral_m": 0.135,
+      "yaw_change_rad": -0.0652,
+      "safety_stops": [],
+      "seconds": 5.0
+    },
+    {
+      "command_vx": 1.0,
+      "achieved_vx": 0.65,
+      "lateral_m": -0.1388,
+      "yaw_change_rad": -0.1633,
+      "safety_stops": [],
+      "seconds": 5.0
+    },
+    {
+      "command_vx": -0.3,
+      "achieved_vx": -0.267,
+      "lateral_m": 0.0618,
+      "yaw_change_rad": -0.0019,
+      "safety_stops": [],
+      "seconds": 5.0
+    }
+  ]
+}

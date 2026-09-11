@@ -1,0 +1,26 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      MUJOCO_GL: osmesa          # offscreen rendering without a GPU (camera frames in the sim tests)
+      PYOPENGL_PLATFORM: osmesa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - name: System libraries (OSMesa rendering, ffmpeg for talk videos, a font with Cyrillic)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libosmesa6-dev ffmpeg fonts-dejavu-core
+      - name: Environment from the lock (CPU JAX)
+        run: uv sync --frozen
+      - name: Tests (model, speech and transcription servers are faked)
+        run: uv run --frozen pytest -q

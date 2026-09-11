@@ -1,0 +1,10 @@
+humanoid-companion
+Copyright 2026 Yauhen Bichel
+
+This product includes software developed at Google DeepMind:
+- src/humanoid_companion/envs.py adapts Op3Joystick.step from MuJoCo Playground 0.2.0
+  (https://github.com/google-deepmind/mujoco_playground), Apache License 2.0.
+
+The ROBOTIS OP3 model is loaded at run time from MuJoCo Playground / MuJoCo Menagerie
+(https://github.com/google-deepmind/mujoco_menagerie), Apache License 2.0; it is not
+redistributed here.

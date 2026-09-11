@@ -1,0 +1,10 @@
+{
+  "_doc": "One source for the face: read by face.html (injected by the server) and face/render.py. open: eye height x, w: eye width x, tilt: eye rotation (rad), curve: mouth curve (+ smile, - frown), mw: mouth width x, look: gaze offset [x, y] in eye units; flags: arc (happy eyes), dots (thinking), o (open mouth), ring (listening), zzz (sleeping), brows (sad).",
+  "neutral":   {"open": 1.0,  "w": 1.0, "tilt": 0.0,  "curve": 0.15, "mw": 0.9,  "look": [0, 0]},
+  "happy":     {"open": 0.55, "w": 1.0, "tilt": 0.0,  "curve": 0.9,  "mw": 1.1,  "look": [0, 0], "arc": true},
+  "thinking":  {"open": 0.8,  "w": 0.9, "tilt": 0.0,  "curve": 0.0,  "mw": 0.5,  "look": [-0.5, -0.6], "dots": true},
+  "surprised": {"open": 1.35, "w": 1.1, "tilt": 0.0,  "curve": 0.0,  "mw": 0.45, "look": [0, 0], "o": true},
+  "sad":       {"open": 0.8,  "w": 1.0, "tilt": 0.35, "curve": -0.6, "mw": 0.8,  "look": [0, 0.4], "brows": true},
+  "listening": {"open": 1.1,  "w": 1.0, "tilt": 0.0,  "curve": 0.25, "mw": 0.7,  "look": [0, 0], "ring": true},
+  "sleeping":  {"open": 0.06, "w": 1.0, "tilt": 0.0,  "curve": 0.1,  "mw": 0.6,  "look": [0, 0.3], "zzz": true}
+}

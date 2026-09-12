@@ -12,7 +12,15 @@ permissions:
   contents: read
 
 jobs:
+  # The same job the pull request ran, environment included. Releasing used to repeat the pytest
+  # line here without the OSMesa setup tests.yml has, so the release of 0.1.1 failed on a headless
+  # runner ("the GLFW library is not initialized") while the pull request was green. Calling the
+  # workflow instead of copying its command keeps the two from drifting apart again.
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   build:
+    needs: tests
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -22,10 +30,10 @@ jobs:
         run: |
           version=$(uv version --short)
           test "v$version" = "$GITHUB_REF_NAME" || { echo "::error::tag $GITHUB_REF_NAME, pyproject $version"; exit 1; }
-      - name: Tests
-        run: uv sync --frozen && uv run --frozen python -m pytest -q
       - name: Build sdist and wheel
         run: uv build
+      - name: Environment from the lock
+        run: uv sync --frozen
       - name: The wheel installs and its commands run
         run: |
           uvx --from dist/*.whl humanoid-talk --help

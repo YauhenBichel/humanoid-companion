@@ -1,6 +1,6 @@
 [project]
 name = "humanoid-companion"
-version = "0.1.0"
+version = "0.1.1"
 description = "A small simulated humanoid that walks, gestures, shows a face and talks, driven by a language model you run yourself"
 readme = "README.md"
 license = "Apache-2.0"
@@ -46,6 +46,14 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/humanoid_companion"]
+
+# The demo media is 6 MB of the 6.4 MB sdist and is only there to render the README, which now
+# points at it by URL. Everyone installing the package would otherwise download the video.
+[tool.hatch.build.targets.sdist]
+# "docs/media" alone is not enough: .gitignore has "!docs/media/*.mp4", and hatchling reads that
+# negation as a force-include that beats a directory exclude. Measured: the video survived, the
+# pattern below removes it (6.4 MB -> 389 kB).
+exclude = ["docs/media/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

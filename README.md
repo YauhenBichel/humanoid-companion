@@ -11,9 +11,9 @@ language model **you run yourself** (Ollama, llama.cpp, vLLM, or any OpenAI-comp
 Today its body is a simulated ROBOTIS OP3 in MuJoCo, driven by exactly the control loop a real
 robot would run. The goal is to put the same code on a real 50 cm robot.
 
-![The robot waves hello, dances, walks forward and turns left when asked, throws its arms up when praised, and waves goodbye in Belarusian](docs/media/demo.gif)
+![The robot waves hello, dances, walks forward and turns left when asked, throws its arms up when praised, and waves goodbye in Belarusian](https://raw.githubusercontent.com/YauhenBichel/humanoid-companion/main/docs/media/demo.gif)
 
-▶ **[Watch with sound](docs/media/demo-with-sound.mp4)** (35 s). Left: the robot's face. Right: its body, in real time.
+▶ **[Watch with sound](https://github.com/YauhenBichel/humanoid-companion/blob/main/docs/media/demo-with-sound.mp4)** (35 s). Left: the robot's face. Right: its body, in real time.
 
 | # | Person | Robot says | Face · gesture | Body |
 |---|---|---|---|---|
@@ -38,7 +38,7 @@ give it your name and it uses it.
 | **Voice** | Speech and transcription over the OpenAI audio API (Kokoro, Whisper). A Belarusian goodbye in a native voice through [belarusian-tts](https://github.com/YauhenBichel/belarusian-tts). No speech server: the robot shows captions and still moves. |
 | **Training** | `train.py` (Brax PPO, CPU or GPU), a hardened environment (pushes, action latency, encoder offsets, domain randomization), evaluation, export, speed sweep. |
 
-![The seven expressions: neutral, happy, thinking, surprised, sad, listening, sleeping](docs/media/face-expressions.png)
+![The seven expressions: neutral, happy, thinking, surprised, sad, listening, sleeping](https://raw.githubusercontent.com/YauhenBichel/humanoid-companion/main/docs/media/face-expressions.png)
 
 ## Quick start
 

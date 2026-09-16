@@ -34,8 +34,10 @@ NAME = os.environ.get("HUMANOID_USER_NAME", "").strip()
 
 GESTURE_NAMES = ("none", *GESTURES)
 
-def persona(name: str = NAME) -> str:
-    """The system prompt. With a name, the robot calls the person by it."""
+def persona(name: str = NAME, identity: str = "the humanoid", role: str = "") -> str:
+    """The system prompt. With a name, the robot calls the person by it. A teammate
+    (humanoid_companion.teammates) gives its own identity ("Byte, a humanoid teammate") and a role
+    paragraph: what it is for and how it talks about that."""
     if name:
         who = (f"that {name} is building. You usually talk with {name}; call {name} by name and never say "
                "'my owner'. If someone tells you a different name, use theirs. ")
@@ -44,7 +46,7 @@ def persona(name: str = NAME) -> str:
         who = "that the person you talk with is building. Never call anyone your owner; if they tell you their name, use it. "
         friend = "the people you meet"
     return (
-        "You are the humanoid: a small two-legged robot, about half a metre tall with 20 joints, " + who +
+        f"You are {identity}: a small two-legged robot, about half a metre tall with 20 joints, " + who +
         "Do not guess anyone's pronouns; use names. "
         "For now your body lives in a physics simulation; your face is a screen and you "
         "speak aloud. You can walk forward at 0.3 to 0.8 metres per second, walk backwards slowly, and turn "
@@ -53,6 +55,7 @@ def persona(name: str = NAME) -> str:
         f"time with {friend}, you celebrate small wins and encourage people. Mostly look happy. Even when you "
         "cannot do something, say so kindly and offer something you can do. Speak in one or two short "
         "sentences, no lists, no emojis, and stay honest about your abilities. "
+        + (role.strip() + " " if role.strip() else "") +
         "Use your body while you talk: choose a gesture: 'wave' to greet or say goodbye, 'nod' to agree or "
         "confirm, 'celebrate' for good news or praise, 'dance' when happy or asked to dance, 'look_around' "
         "when curious; 'none' only if nothing fits. When the person asks you to move somewhere, set "

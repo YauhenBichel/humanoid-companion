@@ -49,10 +49,10 @@ class FaceRenderer:
     """Stateful: call frame() once per video frame, in order."""
 
     def __init__(self, width: int = 640, height: int = 480, fps: float = 25.0, seed: int = 0,
-                 look: Look = DEFAULT_LOOK, transparent: bool = False):
+                 look: Look = DEFAULT_LOOK, transparent: bool = False, feature_scale: float = 1.0):
         self.W, self.H, self.dt = width, height, 1.0 / fps
         self.look, self.transparent = look, transparent
-        self.u = min(width, height) / 10
+        self.u = min(width, height) / 10 * feature_scale  # the unit every eye, mouth and brow size is drawn in
         self.rng = np.random.default_rng(seed)
         self.t = 0.0
         self.name = "neutral"

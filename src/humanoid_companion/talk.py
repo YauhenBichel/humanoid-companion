@@ -40,7 +40,7 @@ from humanoid_companion.face import FaceServer
 from humanoid_companion.face.look import DEFAULT_LOOK
 from humanoid_companion.gestures import GESTURES, ease, envelope, overlay, talking_head
 from humanoid_companion.songs import Song, caption_at, find_song, load_library, repertoire
-from humanoid_companion.teammates import TEAMMATES
+from humanoid_companion.teammates import all_teammates
 
 FPS = 25
 PRELUDE_S = 1.2   # recorded "thinking" beat before each answer, showing what was said
@@ -114,7 +114,7 @@ class Body:
 class Robot:
     def __init__(self, args):
         self.args = args
-        self.teammate = TEAMMATES.get(getattr(args, "teammate", None) or "")
+        self.teammate = all_teammates().get(getattr(args, "teammate", None) or "")
         songs = getattr(args, "songs", None)
         self.library = load_library(songs) if songs else {}
         look = self.teammate.look if self.teammate else DEFAULT_LOOK
@@ -366,9 +366,15 @@ def main(argv=None) -> None:
     p.add_argument("--speed-cap", type=float, default=0.5)
     p.add_argument("--no-farewell", action="store_true", help="skip the Belarusian goodbye at the end")
     p.add_argument("--record", type=Path, help="save transcript, audio and a split-screen video per turn here")
-    p.add_argument("--teammate", choices=sorted(TEAMMATES), help="talk to a teammate: byte (computer science) or tempo (songs)")
-    p.add_argument("--songs", type=Path, help="a song library folder (humanoid_companion.songs): the robot may sing these")
+    p.add_argument("--teammate", choices=sorted(all_teammates()),
+                   help="talk to a teammate: byte (computer science), tempo (songs), or one of your own")
+    p.add_argument("--songs", type=Path, help="a song library folder (humanoid_companion.songs); "
+                   "default: the teammate's [songs] entry in settings.toml")
     args = p.parse_args(argv)
+    if args.teammate and args.songs is None:
+        from humanoid_companion.settings import song_library
+
+        args.songs = song_library(args.teammate)
     args.policy = args.policy if args.policy.exists() else None
     args.speed_sweep = args.speed_sweep if args.speed_sweep.exists() else None
 

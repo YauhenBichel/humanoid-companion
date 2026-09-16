@@ -30,9 +30,11 @@ dependencies = [
 voice = ["sounddevice==0.5.6"]
 
 [project.scripts]
-humanoid-talk = "humanoid_companion.talk:main"
-humanoid-sim = "humanoid_companion.run_sim:main"
-humanoid-perform = "humanoid_companion.perform:main"
+# Each command reads settings.toml first (humanoid_companion.cli, humanoid_companion.settings).
+humanoid-talk = "humanoid_companion.cli:talk"
+humanoid-sim = "humanoid_companion.cli:sim"
+humanoid-perform = "humanoid_companion.cli:perform"
+humanoid-teammate = "humanoid_companion.cli:teammate"
 
 [project.urls]
 Homepage = "https://github.com/YauhenBichel/humanoid-companion"

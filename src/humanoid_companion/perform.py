@@ -31,7 +31,7 @@ import numpy as np
 from humanoid_companion.character import CharacterRenderer
 from humanoid_companion.face.render import mouth_track
 from humanoid_companion.face.server import EXPRESSIONS
-from humanoid_companion.teammates import TEAMMATES, Teammate
+from humanoid_companion.teammates import Teammate, all_teammates
 
 RATE = 24000  # audio is analysed at this rate; the output keeps the original audio
 WORD_PAD_S = 0.04  # the mouth starts opening just before a word and closes just after it
@@ -137,7 +137,7 @@ def plan_performance(
         mouth = word_gate(sung_word_spans(words), times) * (0.35 + 0.65 * energy)
     else:
         mouth = mouth_track(samples, rate, fps, frames)
-    dance = teammate.accessory == "headphones" if dance is None else dance
+    dance = teammate.dances if dance is None else dance
     beat_phase = None
     if dance:
         if bpm is None:
@@ -192,6 +192,39 @@ def render(
     return out
 
 
+def perform_file(
+    teammate: Teammate,
+    audio: Path,
+    out: Path,
+    words: Path | list[dict] | None = None,
+    cues: Path | list[dict] | None = None,
+    bpm: float | None = None,
+    beat_offset: float = 0.0,
+    dance: bool | None = None,
+    size: tuple[int, int] = (540, 720),
+    fps: float = 30.0,
+    background: str | None = None,
+) -> Path:
+    """The whole of humanoid-perform as one call, for other programs:
+
+        from humanoid_companion.perform import perform_file
+        from humanoid_companion.teammates import all_teammates
+        tempo = all_teammates()["tempo"]
+        perform_file(tempo, Path("song/audio.wav"), Path("tempo.webm"), words=Path("song/times.json"))
+
+    `words` and `cues` are JSON files or the already-loaded lists."""
+    output_arguments(out, background)  # refuse a wrong combination before any work
+
+    def loaded(value):
+        return json.loads(Path(value).read_text()) if isinstance(value, (str, Path)) else value
+
+    performance = plan_performance(
+        teammate, decode_audio(audio), RATE, fps, words=loaded(words), cues=loaded(cues),
+        bpm=bpm, beat_offset=beat_offset, dance=dance,
+    )  # fmt: skip
+    return render(performance, teammate, audio, out, size, background)
+
+
 def parse_size(text: str) -> tuple[int, int]:
     width, _, height = text.lower().partition("x")
     return int(width), int(height)
@@ -199,7 +232,10 @@ def parse_size(text: str) -> tuple[int, int]:
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--teammate", required=True, choices=sorted(TEAMMATES))
+    teammates = all_teammates()
+    parser.add_argument(
+        "--teammate", required=True, choices=sorted(teammates), help="built in: byte, tempo; or your own"
+    )
     parser.add_argument("--audio", required=True, type=Path, help="speech or a song, any format ffmpeg reads")
     parser.add_argument("--out", required=True, type=Path, help=".mov or .webm (transparent), .mp4 (with --background)")
     parser.add_argument("--words", type=Path, help="JSON lines with start/end and optional words, for songs")
@@ -212,22 +248,11 @@ def main(argv=None) -> None:
     parser.add_argument("--background", help="a solid colour such as #101018 (required for .mp4)")
     args = parser.parse_args(argv)
 
-    teammate = TEAMMATES[args.teammate]
-    output_arguments(args.out, args.background)  # refuse a wrong combination before any work
-    samples = decode_audio(args.audio)
-    performance = plan_performance(
-        teammate,
-        samples,
-        RATE,
-        args.fps,
-        words=json.loads(args.words.read_text()) if args.words else None,
-        cues=json.loads(args.cues.read_text()) if args.cues else None,
-        bpm=args.bpm,
-        beat_offset=args.beat_offset,
-        dance=args.dance,
-    )
-    render(performance, teammate, args.audio, args.out, args.size, args.background)
-    print(f"wrote {args.out}: {len(performance.expressions)} frames at {args.fps:g} fps")
+    perform_file(
+        teammates[args.teammate], args.audio, args.out, words=args.words, cues=args.cues, bpm=args.bpm,
+        beat_offset=args.beat_offset, dance=args.dance, size=args.size, fps=args.fps, background=args.background,
+    )  # fmt: skip
+    print(f"wrote {args.out}")
 
 
 if __name__ == "__main__":

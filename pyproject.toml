@@ -32,6 +32,7 @@ voice = ["sounddevice==0.5.6"]
 [project.scripts]
 humanoid-talk = "humanoid_companion.talk:main"
 humanoid-sim = "humanoid_companion.run_sim:main"
+humanoid-perform = "humanoid_companion.perform:main"
 
 [project.urls]
 Homepage = "https://github.com/YauhenBichel/humanoid-companion"

@@ -80,6 +80,48 @@ uv run humanoid-talk --text "Hi! I'm back." --text "Can you dance for me?" \
     --text "Please walk forward a little and then turn left." --record demo/
 ```
 
+## Teammates
+
+![Byte, with an antenna and green face, explains a queue; Tempo, with headphones and a pink face, dances to a song](https://raw.githubusercontent.com/YauhenBichel/humanoid-companion/main/docs/media/teammates.gif)
+
+▶ **[Byte explains a queue, with sound](https://github.com/YauhenBichel/humanoid-companion/blob/main/docs/media/byte-explains-a-queue.mp4)** (8 s)
+
+The companion also comes as two characters, on your laptop and in video clips:
+
+| | Byte | Tempo |
+|---|---|---|
+| **Does** | explains computer science: algorithms, data structures, complexity, one idea at a time | sings songs you give it and dances to them |
+| **Looks** | green face, antenna | pink face, headphones |
+| **Voice** | Kokoro `af_heart` | Kokoro `af_bella` |
+
+**Live**, with face and body in the browser:
+
+```bash
+uv run humanoid-talk --open --teammate byte                   # ask it how Dijkstra's algorithm works
+uv run humanoid-talk --open --teammate tempo --songs my-songs/  # ask it to sing one of your songs
+```
+
+Tempo only sings finished songs from `--songs`, one folder per song: `audio.wav` (any format ffmpeg
+reads), `times.json` with the sung lines (`[{"text", "start", "end", "words": [{"word", "start", "end"}]}]`)
+and optionally `song.json` with a `title`. It never makes up lyrics, and it sings only what you
+give it. The live page shows each line as it is sung.
+
+**Clips**: `humanoid-perform` turns speech or a song into a video of the character, with the audio:
+
+```bash
+uv run humanoid-perform --teammate byte --audio narration.wav --out byte.mov          # ProRes 4444, transparent
+uv run humanoid-perform --teammate tempo --audio song/audio.wav --words song/times.json --out tempo.webm   # VP9, transparent
+uv run humanoid-perform --teammate tempo --audio song/audio.wav --words song/times.json \
+    --background "#101018" --size 1080x1920 --out tempo-vertical.mp4                   # ready to watch
+```
+
+`.mov` and `.webm` keep a transparent background, for laying the character over your own video (for
+example `ffmpeg -i clip.mp4 -c:v libvpx-vp9 -i tempo.webm -filter_complex overlay=40:900 out.mp4`).
+The mouth follows the voice. For a song, `--words` opens it only while a word is sung: the music
+alone doesn't move it. Tempo dances on the beat (`--bpm`, or estimated from the audio). `--cues` sets
+expressions over time: `[{"at": 0, "expression": "thinking"}, {"at": 3.5, "expression": "happy"}]`.
+If you post these clips, label the voice as AI-generated where the platform asks.
+
 ## Configuration
 
 | Variable | Default | What |

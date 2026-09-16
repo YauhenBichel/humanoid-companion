@@ -18,6 +18,7 @@ class Look:
     glow: Colour = (127, 216, 255)  # eyes, mouth, brows and their glow
     background: Colour = (5, 7, 10)  # the screen behind the face
     caption: Colour = (207, 233, 255)
+    shadow: Colour | None = (63, 182, 255)  # the page's glow; None uses the glow colour itself
 
     def css(self) -> dict[str, str]:
         """The same colours as CSS hex strings, for the page."""
@@ -25,6 +26,7 @@ class Look:
             "glow": hex_colour(self.glow),
             "background": hex_colour(self.background),
             "caption": hex_colour(self.caption),
+            "shadow": hex_colour(self.shadow or self.glow),
         }
 
 

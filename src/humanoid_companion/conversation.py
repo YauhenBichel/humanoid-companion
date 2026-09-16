@@ -66,17 +66,22 @@ def persona(name: str = NAME, identity: str = "the humanoid", role: str = "") ->
 
 PERSONA = persona()
 
-SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["say", "expression", "gesture", "action"],
-    "properties": {
-        "say": {"type": "string"},
-        "expression": {"type": "string", "enum": list(EXPRESSIONS)},
-        "gesture": {"type": "string", "enum": list(GESTURE_NAMES)},
-        "action": {"type": "object", "additionalProperties": False, "required": ["kind", "instruction"],
-                   "properties": {"kind": {"type": "string", "enum": list(ACTIONS)},
-                                  "instruction": {"type": "string"}}},
-    },
-}
+def reply_schema(actions: tuple[str, ...] = ACTIONS) -> dict:
+    """The JSON schema of a reply; a singer adds the "sing" action (humanoid_companion.songs)."""
+    return {
+        "type": "object", "additionalProperties": False, "required": ["say", "expression", "gesture", "action"],
+        "properties": {
+            "say": {"type": "string"},
+            "expression": {"type": "string", "enum": list(EXPRESSIONS)},
+            "gesture": {"type": "string", "enum": list(GESTURE_NAMES)},
+            "action": {"type": "object", "additionalProperties": False, "required": ["kind", "instruction"],
+                       "properties": {"kind": {"type": "string", "enum": list(actions)},
+                                      "instruction": {"type": "string"}}},
+        },
+    }
+
+
+SCHEMA = reply_schema()
 
 
 @dataclass
@@ -101,13 +106,13 @@ def trim_spoken(text: str, limit: int = MAX_SAY) -> str:
     return cut[: end + 1] if end > 40 else cut.rsplit(" ", 1)[0] + "…"
 
 
-def parse_reply(raw: str) -> Reply:
+def parse_reply(raw: str, actions: tuple[str, ...] = ACTIONS) -> Reply:
     data = json.loads(raw)
     if not isinstance(data, dict) or not isinstance(data.get("say"), str) or not data["say"].strip():
         raise ValueError("no spoken answer")
     expression = data.get("expression") if data.get("expression") in EXPRESSIONS else "neutral"
     action = data.get("action") if isinstance(data.get("action"), dict) else {}
-    kind = action.get("kind") if action.get("kind") in ACTIONS else "none"
+    kind = action.get("kind") if action.get("kind") in actions else "none"
     instruction = " ".join(str(action.get("instruction", "")).split())[:200] if kind != "none" else ""
     if kind != "none" and not instruction:
         kind = "none"
@@ -118,8 +123,9 @@ def parse_reply(raw: str) -> Reply:
 
 class Conversation:
     def __init__(self, complete: Callable[[list[dict], dict], "Completion | str"] = functools.partial(complete_json, name="robot_reply"),
-                 system: str = PERSONA):
-        self.complete, self.system = complete, system
+                 system: str = PERSONA, actions: tuple[str, ...] = ACTIONS):
+        self.complete, self.system, self.actions = complete, system, actions
+        self.schema = SCHEMA if actions == ACTIONS else reply_schema(actions)
         self.history: list[dict] = []
 
     def respond(self, said: str) -> Reply:
@@ -131,9 +137,9 @@ class Conversation:
         messages = [{"role": "system", "content": self.system}, *self.history, {"role": "user", "content": said}]
         t = time.monotonic()
         try:
-            answer = self.complete(messages, SCHEMA)
+            answer = self.complete(messages, self.schema)
             raw, routing = (answer.text, answer.routing) if isinstance(answer, Completion) else (answer, {})
-            reply = parse_reply(raw)
+            reply = parse_reply(raw, self.actions)
             reply.routing, reply.latency_s = routing, round(time.monotonic() - t, 2)
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             return Reply(say="Sorry, I could not think of an answer just now.", expression="sad", source="fallback",

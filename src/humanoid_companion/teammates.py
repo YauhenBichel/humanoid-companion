@@ -27,15 +27,16 @@ class Teammate:
     role: str  # added to the persona
     resting_expression: str = "neutral"
 
-    def persona(self, name: str = NAME) -> str:
-        return persona(name, identity=f"{self.name}, a humanoid teammate", role=self.role)
+    def persona(self, name: str = NAME, more_role: str = "") -> str:
+        """The companion's persona as this teammate; `more_role` adds to the role (a singer's repertoire)."""
+        return persona(name, identity=f"{self.name}, a humanoid teammate", role=f"{self.role} {more_role}".strip())
 
 
 BYTE = Teammate(
     key="byte",
     name="Byte",
     tagline="explains computer science",
-    look=Look(glow=(120, 255, 190), background=(4, 12, 10), caption=(214, 255, 234)),
+    look=Look(glow=(120, 255, 190), background=(4, 12, 10), caption=(214, 255, 234), shadow=None),
     trim=(38, 70, 64),
     accessory="antenna",
     voice="af_heart",  # the calm, clear voice the graph-algorithm clips already use
@@ -53,7 +54,7 @@ TEMPO = Teammate(
     key="tempo",
     name="Tempo",
     tagline="sings songs",
-    look=Look(glow=(255, 150, 220), background=(14, 5, 16), caption=(255, 226, 244)),
+    look=Look(glow=(255, 150, 220), background=(14, 5, 16), caption=(255, 226, 244), shadow=None),
     trim=(78, 40, 84),
     accessory="headphones",
     voice="af_bella",

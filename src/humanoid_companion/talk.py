@@ -4,6 +4,8 @@
     python -m humanoid_companion.talk --open --mic                   # press Enter, speak for --listen seconds
     python -m humanoid_companion.talk --text "Hi!" --text "Walk forward a little, then turn left." \
         --record demo/                                    # scripted, recorded as one split-screen video
+    python -m humanoid_companion.talk --open --teammate byte          # Byte, who explains computer science
+    python -m humanoid_companion.talk --open --teammate tempo --songs my-songs/   # Tempo sings from a song folder
 
 Per turn: face "thinking" -> conversation reply (your LLM) -> in parallel the speech (Kokoro) and,
 when asked to walk, the walking plan -> the robot speaks *while* its body acts: the face page plays
@@ -12,6 +14,10 @@ control loop in C MuJoCo in real time. The body persists for the whole conversat
 it walked and keeps balancing between turns). Every conversation ends with a short Belarusian
 farewell. Without a speech server the robot still shows its captions and moves; it is just silent. With --record, each turn becomes a video: face (drawn by humanoid_companion.face.render, mouth
 following the voice) | body camera, with the voice; talk.mp4 joins them.
+
+A teammate (humanoid_companion.teammates) brings its persona, voice and face colours. With --songs
+(humanoid_companion.songs) the robot can sing: asked for a song, it answers, then plays the song on
+the face page with each sung line as the caption while the body dances standing.
 """
 
 import argparse
@@ -29,9 +35,12 @@ from pathlib import Path
 import numpy as np
 
 from humanoid_companion import voice
-from humanoid_companion.conversation import NAME, Conversation, Reply
+from humanoid_companion.conversation import ACTIONS, NAME, Conversation, Reply, persona
 from humanoid_companion.face import FaceServer
+from humanoid_companion.face.look import DEFAULT_LOOK
 from humanoid_companion.gestures import GESTURES, ease, envelope, overlay, talking_head
+from humanoid_companion.songs import Song, caption_at, find_song, load_library, repertoire
+from humanoid_companion.teammates import TEAMMATES
 
 FPS = 25
 PRELUDE_S = 1.2   # recorded "thinking" beat before each answer, showing what was said
@@ -105,8 +114,16 @@ class Body:
 class Robot:
     def __init__(self, args):
         self.args = args
-        self.face = FaceServer(port=args.port).start()
-        self.conv = Conversation()
+        self.teammate = TEAMMATES.get(getattr(args, "teammate", None) or "")
+        songs = getattr(args, "songs", None)
+        self.library = load_library(songs) if songs else {}
+        look = self.teammate.look if self.teammate else DEFAULT_LOOK
+        title = f"{self.teammate.name}, humanoid teammate" if self.teammate else "Humanoid face"
+        self.face = FaceServer(port=args.port, look=look, title=title).start()
+        self.conv = Conversation(system=self.system_prompt(), actions=ACTIONS + (("sing",) if self.library else ()))
+        # Only a teammate names its voice; otherwise voice.speak's default (HUMANOID_TTS_VOICE) applies.
+        self.voice_options = {"voice": self.teammate.voice} if self.teammate else {}
+        self.look = look
         self.record = args.record
         self.turns: list[dict] = []
         self.body = None
@@ -124,7 +141,11 @@ class Robot:
             from humanoid_companion.face.render import FaceRenderer
 
             self.record.mkdir(parents=True, exist_ok=True)
-            self.painter = FaceRenderer(640, 480, FPS)
+            self.painter = FaceRenderer(640, 480, FPS, look=self.look)
+
+    def system_prompt(self) -> str:
+        songs = repertoire(self.library) if self.library else ""
+        return self.teammate.persona(NAME, more_role=songs) if self.teammate else persona(NAME, role=songs)
 
     # --- senses ---
     def hear(self) -> tuple[str, str | None]:
@@ -148,11 +169,61 @@ class Robot:
             plan_job = pool.submit(self._plan, reply.action["instruction"]) if walking else None
             wav, plan = wav_job.result(), (plan_job.result() if plan_job else None)
         self.perform(said, heard, reply, reply.say, wav, plan)
+        if reply.action["kind"] == "sing":
+            song = find_song(self.library, reply.action["instruction"])
+            if song:
+                self.sing(song)
+            else:
+                print(f"  (no song {reply.action['instruction']!r} in the library)")
+
+    def sing(self, song: Song) -> None:
+        """Play a song from the library: the face page plays it with the sung line as the caption, the body
+        dances standing (the dance gesture's arms, over and over; no steps)."""
+        from humanoid_companion.perform import RATE, decode_audio
+
+        samples = decode_audio(song.audio, RATE)
+        wav, seconds = voice.to_wav(samples, RATE), len(samples) / RATE
+        print(f"  singing {song.key} ({seconds:.0f} s)")
+        live = bool(self.face.viewers)
+        uid = self.face.say(wav, caption=song.first_line, expression="happy")
+        finished = threading.Event()
+
+        def follow_the_lines() -> None:
+            started, shown = time.monotonic(), None
+            while not finished.wait(0.1):
+                line = caption_at(song.lines, time.monotonic() - started)
+                if line != shown:
+                    self.face.set_expression("happy", caption=line)
+                    shown = line
+
+        captions = threading.Thread(target=follow_the_lines, daemon=True)
+        if live:
+            captions.start()
+        player = None
+        if not live and self.args.speaker:
+            player = threading.Thread(target=voice.play, args=(wav,))
+            player.start()
+        result = {}
+        if self.body:
+            dance = GESTURES["dance"]
+            arms = overlay(self.body.policy.spec.actuator_names, lambda t: dance.offsets(t % dance.duration))
+            standing = np.zeros(3, np.float32)
+            result, _ = self.body.run(lambda t: standing, seconds, realtime=live or self.args.speaker, gesture_at=arms)
+        if live:
+            self.face.wait_played(uid, seconds + 5)
+        if player:
+            player.join()
+        finished.set()
+        self.face.set_expression("happy", caption="")
+        self.turns.append({"n": len(self.turns) + 1, "song": song.key, "title": song.title, "seconds": round(seconds, 2),
+                           "safety_stops": result.get("safety_stops", [])})
+        if self.record:
+            (self.record / "conversation.json").write_text(json.dumps({"name": NAME, "turns": self.turns}, indent=2))
 
     def _speak(self, text: str) -> bytes:
         """The voice, or silence as long as the text when no speech server answers."""
         try:
-            return voice.speak(text)
+            return voice.speak(text, **self.voice_options)
         except OSError as e:
             if not self.silent:
                 print(f"(no speech server at {voice.tts_url()}: {e}; captions only)")
@@ -295,6 +366,8 @@ def main(argv=None) -> None:
     p.add_argument("--speed-cap", type=float, default=0.5)
     p.add_argument("--no-farewell", action="store_true", help="skip the Belarusian goodbye at the end")
     p.add_argument("--record", type=Path, help="save transcript, audio and a split-screen video per turn here")
+    p.add_argument("--teammate", choices=sorted(TEAMMATES), help="talk to a teammate: byte (computer science) or tempo (songs)")
+    p.add_argument("--songs", type=Path, help="a song library folder (humanoid_companion.songs): the robot may sing these")
     args = p.parse_args(argv)
     args.policy = args.policy if args.policy.exists() else None
     args.speed_sweep = args.speed_sweep if args.speed_sweep.exists() else None

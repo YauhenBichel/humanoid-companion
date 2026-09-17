@@ -51,7 +51,7 @@ def test_a_teammate_file_starts_from_a_built_in_and_overrides_it(config):
         'role = "Your role: you tell short, true stories about space."\n[colours]\nglow = "#9fd0ff"\n'
     )
     mates = all_teammates()
-    assert set(mates) == {"byte", "tempo", "nova"}
+    assert set(mates) == {"byte", "tempo", "alesia", "maks", "nova"}
     nova = mates["nova"]
     assert (nova.name, nova.accessory, nova.dances, nova.voice) == ("Nova", "none", False, TEAMMATES["tempo"].voice)
     assert nova.look.glow == (159, 208, 255) and nova.look.background == TEAMMATES["tempo"].look.background

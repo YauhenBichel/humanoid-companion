@@ -9,6 +9,15 @@
 - `humanoid-perform`: speech or a song in, a character video out (transparent `.mov` or `.webm`, or
   `.mp4` on a colour). The mouth follows the voice or the sung words, and the singer dances on the beat.
 - The face takes a colour look, and the renderer can draw transparent frames.
+- Two singer teammates, Alesia (Алеся) and Maks (Максім): original animated characters of young
+  Belarusian singers, drawn in code with gradient shading and a rim light, each with over-ear headphones
+  and a wireless microphone (`humanoid-talk --teammate alesia|maks`, `humanoid-perform --teammate
+  alesia|maks`). Their mouths take the shape of the vowel being sung (from `--words`), the microphone
+  follows the mouth while they sing and lowers in the pauses, and the free arm dances through four
+  poses on the beat. Chat voices: Kokoro `af_sky` and `am_michael`. Design sheets in `docs/media/`.
+- A teammate has a `character` (how clips draw it) and an optional Belarusian `native_name`; a teammate
+  file `based_on` a singer is drawn as that singer. Byte's and Tempo's clips are unchanged, checked
+  frame by frame against frames recorded before the change.
 
 ## 0.1.0 (unreleased)
 

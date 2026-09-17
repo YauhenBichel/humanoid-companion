@@ -6,6 +6,7 @@
         --record demo/                                    # scripted, recorded as one split-screen video
     python -m humanoid_companion.talk --open --teammate byte          # Byte, who explains computer science
     python -m humanoid_companion.talk --open --teammate tempo --songs my-songs/   # Tempo sings from a song folder
+    python -m humanoid_companion.talk --open --teammate alesia --songs my-songs/  # so do the singers Alesia and Maks
 
 Per turn: face "thinking" -> conversation reply (your LLM) -> in parallel the speech (Kokoro) and,
 when asked to walk, the walking plan -> the robot speaks *while* its body acts: the face page plays
@@ -367,7 +368,7 @@ def main(argv=None) -> None:
     p.add_argument("--no-farewell", action="store_true", help="skip the Belarusian goodbye at the end")
     p.add_argument("--record", type=Path, help="save transcript, audio and a split-screen video per turn here")
     p.add_argument("--teammate", choices=sorted(all_teammates()),
-                   help="talk to a teammate: byte (computer science), tempo (songs), or one of your own")
+                   help="talk to a teammate: byte (computer science), tempo, alesia or maks (songs), or one of your own")
     p.add_argument("--songs", type=Path, help="a song library folder (humanoid_companion.songs); "
                    "default: the teammate's [songs] entry in settings.toml")
     args = p.parse_args(argv)

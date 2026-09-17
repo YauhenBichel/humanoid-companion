@@ -34,10 +34,14 @@ NAME = os.environ.get("HUMANOID_USER_NAME", "").strip()
 
 GESTURE_NAMES = ("none", *GESTURES)
 
-def persona(name: str = NAME, identity: str = "the humanoid", role: str = "") -> str:
+ROBOT_BODY = "a small two-legged robot, about half a metre tall with 20 joints, "
+
+
+def persona(name: str = NAME, identity: str = "the humanoid", role: str = "", body: str = ROBOT_BODY) -> str:
     """The system prompt. With a name, the robot calls the person by it. A teammate
-    (humanoid_companion.teammates) gives its own identity ("Byte, a humanoid teammate") and a role
-    paragraph: what it is for and how it talks about that."""
+    (humanoid_companion.teammates) gives its own identity ("Byte, a humanoid teammate"), a role
+    paragraph (what it is for and how it talks about that) and, for a character that is not simply
+    the robot, how its `body` is described (it ends with ", " and runs into the next sentence)."""
     if name:
         who = (f"that {name} is building. You usually talk with {name}; call {name} by name and never say "
                "'my owner'. If someone tells you a different name, use theirs. ")
@@ -46,7 +50,7 @@ def persona(name: str = NAME, identity: str = "the humanoid", role: str = "") ->
         who = "that the person you talk with is building. Never call anyone your owner; if they tell you their name, use it. "
         friend = "the people you meet"
     return (
-        f"You are {identity}: a small two-legged robot, about half a metre tall with 20 joints, " + who +
+        f"You are {identity}: {body}" + who +
         "Do not guess anyone's pronouns; use names. "
         "For now your body lives in a physics simulation; your face is a screen and you "
         "speak aloud. You can walk forward at 0.3 to 0.8 metres per second, walk backwards slowly, and turn "

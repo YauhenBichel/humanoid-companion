@@ -80,14 +80,15 @@ def teammate(argv=None) -> None:
             for key, mate in all_teammates().items():
                 songs = settings.song_library(key)
                 extra = f", songs: {songs}" if songs else ""
-                print(f"{key:12} {mate.name}: {mate.tagline} ({mate.source}{extra})")
+                print(f"{key:12} {mate.display_name}: {mate.tagline} ({mate.source}{extra})")
         elif args.command == "show":
             mates = all_teammates()
             if args.key not in mates:
                 sys.exit(f"no teammate {args.key!r}; humanoid-teammate list")
             mate = mates[args.key]
-            print(f"{mate.name} ({mate.key}): {mate.tagline}\n  from: {mate.source}\n  voice: {mate.voice}, "
-                  f"accessory: {mate.accessory}, dances: {mate.dances}, resting: {mate.resting_expression}\n"
+            print(f"{mate.display_name} ({mate.key}): {mate.tagline}\n  from: {mate.source}\n  voice: {mate.voice}, "
+                  f"drawn as: {mate.character}, accessory: {mate.accessory}, dances: {mate.dances}, "
+                  f"resting: {mate.resting_expression}\n"
                   f"  songs: {settings.song_library(mate.key) or '-'}\n  role: {mate.role}")  # fmt: skip
         else:
             path = settings.config_dir() / "teammates" / f"{args.key}.toml"

@@ -1,12 +1,17 @@
-"""Teammates: the companion as two distinct characters, for the laptop and for video clips.
+"""Teammates: the companion as distinct characters, for the laptop and for video clips.
 
     byte    explains computer science: algorithms, data structures, complexity, one idea at a time
-    tempo   the singer: performs songs and dances to them
+    tempo   the robot singer: performs songs and dances to them
+    alesia  Алеся, a young Belarusian singer, drawn as an animated character with a microphone
+    maks    Максім, a young Belarusian singer, drawn as an animated character with a microphone
 
 A teammate is a look (face colours, the head's trim and an accessory), a voice, and a role added to
 the companion's persona (humanoid_companion.conversation.persona). The same teammate is used live
-(`humanoid-talk --teammate byte`) and in videos (humanoid_companion.character, `humanoid-perform`).
-Names are neutral on purpose; the persona tells the model not to guess anyone's pronouns.
+(`humanoid-talk --teammate byte`) and in videos (`humanoid-perform`). In videos a teammate is drawn as
+its `character`: "robot" is the robot bust (humanoid_companion.character) in the teammate's colours;
+"alesia" and "maks" are the singers (humanoid_companion.singers). Their voices speak only when they
+chat; a song they perform keeps the song's own audio. The persona tells the model not to guess
+anyone's pronouns.
 
 Your own teammates are TOML files in the settings folder's teammates/ directory
 (humanoid_companion.settings; `humanoid-teammate new nova --from byte` writes one to edit). The file
@@ -38,6 +43,7 @@ from humanoid_companion.face.look import Colour, Look
 from humanoid_companion.face.server import EXPRESSIONS
 
 ACCESSORIES = ("antenna", "headphones", "none")
+CHARACTERS = ("robot", "alesia", "maks")  # how humanoid-perform draws a teammate
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
@@ -58,10 +64,20 @@ class Teammate:
     resting_expression: str = "neutral"
     dances: bool = False  # sways and bounces on the beat in clips (humanoid_companion.perform)
     source: str = "built in"  # or the file it was loaded from
+    native_name: str = ""  # the name in Belarusian, when it has one: "Алеся"
+    character: str = "robot"  # how clips draw it: one of CHARACTERS
+    body: str = ""  # how the persona describes its body; empty: the robot's (conversation.ROBOT_BODY)
+
+    @property
+    def display_name(self) -> str:
+        return f"{self.native_name} / {self.name}" if self.native_name else self.name
 
     def persona(self, name: str = NAME, more_role: str = "") -> str:
         """The companion's persona as this teammate; `more_role` adds to the role (a singer's repertoire)."""
-        return persona(name, identity=f"{self.name}, a humanoid teammate", role=f"{self.role} {more_role}".strip())
+        called = f"{self.name} ({self.native_name})" if self.native_name else self.name
+        kind = "a humanoid teammate" if self.character == "robot" else "an animated singer teammate"
+        extra = {"body": self.body} if self.body else {}
+        return persona(name, identity=f"{called}, {kind}", role=f"{self.role} {more_role}".strip(), **extra)
 
 
 BYTE = Teammate(
@@ -100,7 +116,59 @@ TEMPO = Teammate(
     dances=True,
 )
 
-TEAMMATES = {teammate.key: teammate for teammate in (BYTE, TEMPO)}  # the built-in teammates
+SINGER_BODY = (
+    "a young singer from Belarus, drawn as an animated character with over-ear headphones and a wireless "
+    "microphone in music videos; when you chat live you speak through the small two-legged robot's screen "
+    "and body, about half a metre tall with 20 joints, "
+)
+
+
+def singer_role(name: str) -> str:
+    return (
+        f"Your role: you are {name}, a warm, modern singer from Belarus in your twenties. You sing finished "
+        "songs in Belarusian that you have been given, in modern styles such as pop-punk, nu-disco, slap "
+        "house, R&B and synth-pop, and you love talking about melodies, rhythm, night drives and what a song "
+        "is about. Only sing songs you have been given; never invent lyrics on the spot and never sing "
+        "someone else's copyrighted song. You chat in the language the person uses; Belarusian words are for "
+        "names and song titles. Keep away from politics and stay with the music. You are an original "
+        "character and are not a real person. Choose 'dance' when music comes up and 'celebrate' when "
+        "someone likes a song."
+    )
+
+
+ALESIA = Teammate(
+    key="alesia",
+    name="Alesia",
+    native_name="Алеся",
+    tagline="sings Belarusian songs with a microphone",
+    look=Look(glow=(255, 120, 214), background=(10, 8, 22), caption=(255, 228, 246), shadow=None),
+    trim=(40, 70, 170),
+    accessory="headphones",
+    voice="af_sky",  # Tempo already speaks with af_bella
+    role=singer_role("Alesia (Алеся)"),
+    resting_expression="happy",
+    dances=True,
+    character="alesia",
+    body=SINGER_BODY,
+)
+
+MAKS = Teammate(
+    key="maks",
+    name="Maks",
+    native_name="Максім",
+    tagline="sings Belarusian songs with a microphone",
+    look=Look(glow=(90, 222, 255), background=(4, 10, 16), caption=(218, 246, 255), shadow=None),
+    trim=(30, 34, 44),
+    accessory="headphones",
+    voice="am_michael",
+    role=singer_role("Maks (Максім)"),
+    resting_expression="happy",
+    dances=True,
+    character="maks",
+    body=SINGER_BODY,
+)
+
+TEAMMATES = {teammate.key: teammate for teammate in (BYTE, TEMPO, ALESIA, MAKS)}  # the built-in teammates
 
 
 def parse_colour(text: str, field: str) -> Colour:
@@ -138,6 +206,7 @@ def teammate_from_file(path: Path, built_in: dict[str, Teammate] = TEAMMATES) ->
             base,
             key=key,
             name=str(data.get("name", base.name if key == base_key else key.capitalize())),
+            native_name=str(data.get("native_name", base.native_name if key == base_key else "")),
             tagline=str(data.get("tagline", base.tagline)),
             look=look,
             trim=parse_colour(colours["trim"], "colours.trim") if "trim" in colours else base.trim,

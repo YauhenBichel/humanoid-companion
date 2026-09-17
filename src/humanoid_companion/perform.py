@@ -4,6 +4,7 @@
     humanoid-perform --teammate tempo --audio song/audio.wav --words song/times.json --out tempo.webm
     humanoid-perform --teammate tempo --audio song/audio.wav --words song/times.json \
         --background "#101018" --out tempo.mp4
+    humanoid-perform --teammate alesia --audio song/audio.wav --words song/times.json --size 360x480 --out alesia.webm
 
 The output keeps the audio. Its format follows the file name:
 
@@ -14,8 +15,9 @@ The output keeps the audio. Its format follows the file name:
 How the character moves:
 - the mouth follows the voice's loudness. For a song the loudness is mostly the music, so pass the
   sung words (`--words`, a JSON list of lines with `start`, `end` and optional `words` with their own
-  `start` and `end`): the mouth then opens only while a word is sung;
-- a singer (Tempo) dances on the beat: `--bpm` and `--beat-offset`, or estimated from the audio;
+  `start` and `end`): the mouth then opens only while a word is sung. The singers Alesia and Maks also
+  shape the mouth by the vowel being sung (humanoid_companion.singers.vowel_track);
+- a singer (Tempo, Alesia, Maks) dances on the beat: `--bpm` and `--beat-offset`, or estimated from the audio;
 - `--cues` sets expressions over time: a JSON list of {"at": seconds, "expression": name}.
 """
 
@@ -31,6 +33,7 @@ import numpy as np
 from humanoid_companion.character import CharacterRenderer
 from humanoid_companion.face.render import mouth_track
 from humanoid_companion.face.server import EXPRESSIONS
+from humanoid_companion.singers import SINGERS, SingerRenderer, vowel_track
 from humanoid_companion.teammates import Teammate, all_teammates
 
 RATE = 24000  # audio is analysed at this rate; the output keeps the original audio
@@ -116,6 +119,7 @@ class Performance:
     mouth: np.ndarray
     energy: np.ndarray
     beat_phase: np.ndarray | None  # None: the character does not dance
+    vowels: list[str | None] | None = None  # the vowel sung per frame ("a", "e", "o"), from the words
 
 
 def plan_performance(
@@ -144,7 +148,8 @@ def plan_performance(
             bpm, beat_offset = estimate_beat(samples, rate)
         beat_phase = ((times - beat_offset) * bpm / 60.0) % 1.0
     expressions = [expression_at(cues or [], t, teammate.resting_expression) for t in times]
-    return Performance(fps, expressions, mouth, energy, beat_phase)
+    vowels = vowel_track(words, times) if words else None
+    return Performance(fps, expressions, mouth, energy, beat_phase, vowels)
 
 
 def output_arguments(out: Path, background: str | None) -> list[str]:
@@ -154,6 +159,27 @@ def output_arguments(out: Path, background: str | None) -> list[str]:
     if suffix == ".mp4" and not background:
         raise SystemExit("an .mp4 has no transparency: give --background, or write .mov or .webm")
     return ENCODERS[suffix]
+
+
+def character_renderer(teammate: Teammate, width: int, height: int, fps: float):
+    """The renderer that draws this teammate: the robot bust, or one of the singers."""
+    if teammate.character in SINGERS:
+        return SingerRenderer(SINGERS[teammate.character], width, height, fps=fps)
+    return CharacterRenderer(teammate, width, height, fps=fps)
+
+
+def performance_frames(performance: Performance, teammate: Teammate, size: tuple[int, int]):
+    """Every frame of the performance as an RGBA array, in order."""
+    renderer = character_renderer(teammate, *size, fps=performance.fps)
+    singer = isinstance(renderer, SingerRenderer)
+    for i, expression in enumerate(performance.expressions):
+        phase = None if performance.beat_phase is None else float(performance.beat_phase[i])
+        mouth, energy = float(performance.mouth[i]), float(performance.energy[i])
+        if singer:
+            vowel = performance.vowels[i] if performance.vowels else None
+            yield renderer.frame(expression, mouth, energy, phase, vowel)
+        else:
+            yield renderer.frame(expression, mouth, energy, phase)
 
 
 def render(
@@ -166,7 +192,6 @@ def render(
 ) -> Path:
     """Draw every frame and encode them with the audio into `out`."""
     width, height = size
-    renderer = CharacterRenderer(teammate, width, height, fps=performance.fps)
     video_input = ["-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{width}x{height}", "-r", str(performance.fps)]
     if background:
         colour = background.lstrip("#")
@@ -181,9 +206,7 @@ def render(
     ]  # fmt: skip
     encoder = subprocess.Popen(command, stdin=subprocess.PIPE)
     try:
-        for i, expression in enumerate(performance.expressions):
-            phase = None if performance.beat_phase is None else float(performance.beat_phase[i])
-            frame = renderer.frame(expression, float(performance.mouth[i]), float(performance.energy[i]), phase)
+        for frame in performance_frames(performance, teammate, size):
             encoder.stdin.write(frame.tobytes())
     finally:
         encoder.stdin.close()
@@ -234,7 +257,7 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     teammates = all_teammates()
     parser.add_argument(
-        "--teammate", required=True, choices=sorted(teammates), help="built in: byte, tempo; or your own"
+        "--teammate", required=True, choices=sorted(teammates), help="built in: byte, tempo, alesia, maks; or your own"
     )
     parser.add_argument("--audio", required=True, type=Path, help="speech or a song, any format ffmpeg reads")
     parser.add_argument("--out", required=True, type=Path, help=".mov or .webm (transparent), .mp4 (with --background)")
@@ -242,7 +265,7 @@ def main(argv=None) -> None:
     parser.add_argument("--cues", type=Path, help='JSON list of {"at": seconds, "expression": name}')
     parser.add_argument("--bpm", type=float, help="the song's tempo; estimated from the audio when missing")
     parser.add_argument("--beat-offset", type=float, default=0.0, help="seconds to the first beat, with --bpm")
-    parser.add_argument("--dance", action=argparse.BooleanOptionalAction, help="default: Tempo dances, Byte does not")
+    parser.add_argument("--dance", action=argparse.BooleanOptionalAction, help="default: the singers (Tempo, Alesia, Maks) dance, Byte does not")
     parser.add_argument("--size", type=parse_size, default=(540, 720), help="WIDTHxHEIGHT, default 540x720")
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--background", help="a solid colour such as #101018 (required for .mp4)")

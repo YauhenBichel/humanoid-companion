@@ -6,7 +6,7 @@ from humanoid_companion.teammates import BYTE, TEAMMATES, TEMPO
 
 
 def test_the_two_teammates_look_different():
-    assert set(TEAMMATES) == {"byte", "tempo"}
+    assert set(TEAMMATES) == {"byte", "tempo", "alesia", "maks"}
     assert BYTE.look != TEMPO.look and BYTE.trim != TEMPO.trim and BYTE.accessory != TEMPO.accessory
 
 

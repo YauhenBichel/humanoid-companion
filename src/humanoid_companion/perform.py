@@ -18,6 +18,9 @@ How the character moves:
   `start` and `end`): the mouth then opens only while a word is sung. The singers Alesia and Maks also
   shape the mouth by the vowel being sung (humanoid_companion.singers.vowel_track);
 - a singer (Tempo, Alesia, Maks) dances on the beat: `--bpm` and `--beat-offset`, or estimated from the audio;
+- speaking or singing, the characters nod on stressed syllables, move their heads into a new tilt as a phrase
+  starts, glance aside now and then, and breathe and drift in pauses (humanoid_companion.motion): no motion runs
+  on a fixed clock except the dance's beat;
 - `--cues` sets expressions over time: a JSON list of {"at": seconds, "expression": name}.
 """
 

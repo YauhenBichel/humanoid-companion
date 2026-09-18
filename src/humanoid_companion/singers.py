@@ -17,9 +17,13 @@ What drives what (the same per-frame signals humanoid_companion.perform already 
 - the microphone hand follows the mouth: up beside the chin while the singer sings (a little closer
   when loud), lowered to the chest after a pause, always below and to the side of the mouth.
 - `beat_phase` (0..1 inside the beat, None when not dancing): the singer counts beats itself, sways
-  once per two beats, dips softly on each beat, and moves the free arm through four dance poses, one
-  every two beats, easing into each pose and holding it. Every motion is a sine or an ease: no
-  punches, no shake.
+  once per two beats, dips softly on each beat, and moves the free arm through the dance poses in a
+  seeded order (humanoid_companion.motion.Choreography): 2 or 4 beats each, never the same pose twice
+  in a row, now and then a rest. The arm goes through springs, the forearm a little behind the upper
+  arm, so a move has weight and follow-through. No punches, no shake.
+- the head nods on the syllables the voice leans on and lifts at the start of a phrase (brows up a
+  touch); the eyes hold a look and glance aside now and then (humanoid_companion.motion.Gaze); a slow
+  drift and breathing keep the body alive in every pause.
 - `energy` (0..1, loudness of the music): how big the dance is, smoothed over about 0.3 s.
 - `expression` (the face's seven expressions): brows, eye opening, squint, smile, gaze, head tilt.
 - blinks every 2.5-5.5 s; hair (bun, tendrils, fringe) follows the head through a damped spring.
@@ -34,6 +38,8 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
+
+from humanoid_companion.motion import Choreography, Drift, EmphasisDetector, Gaze, Spring
 
 Colour = tuple[int, int, int]
 
@@ -229,13 +235,18 @@ def smoothstep(x: float) -> float:
     return x * x * (3 - 2 * x)
 
 
-def arm_at(beats: float, amount: float) -> tuple[float, float, str]:
-    """The free arm at a beat count: one pose per two beats, eased in over the first beat, then held
-    with a gentle pump; `amount` (0..1) blends from the resting arm."""
-    segment = beats / 2.0
-    index = int(math.floor(segment)) % len(DANCE_POSES)
-    ease = smoothstep((segment - math.floor(segment)) / 0.5)
-    (a0, b0, h0), (a1, b1, h1) = DANCE_POSES[index - 1][1], DANCE_POSES[index][1]
+def arm_at(beats: float, amount: float, choreography: Choreography | None = None) -> tuple[float, float, str]:
+    """The free arm at a beat count, eased into each pose over one beat, then held with a gentle pump;
+    `amount` (0..1) blends from the resting arm. Without a choreography the poses go in their fixed
+    order, one per two beats (design sheets); with one, in its seeded order and lengths."""
+    if choreography is None:
+        segment = beats / 2.0
+        index = int(math.floor(segment)) % len(DANCE_POSES)
+        before, now, since = index - 1, index, (segment - math.floor(segment)) * 2.0
+    else:
+        before, now, since = choreography.pose_at(beats)
+    ease = smoothstep(since)
+    (a0, b0, h0), (a1, b1, h1) = (REST_ARM if p == -1 else DANCE_POSES[p % len(DANCE_POSES)][1] for p in (before, now))
     ar, br, hr = REST_ARM
     pump = 6.0 * math.sin(2 * math.pi * beats)  # the forearm moves with each beat, softly
     a, b = a0 + (a1 - a0) * ease, b0 + (b1 - b0) * ease
@@ -264,6 +275,7 @@ class Pose:
     mouth: tuple[float, float, float, float] = MOUTH_SHAPES["closed"]
     blink: float = 0.0  # 0 open .. 1 shut
     head_angle: float = 0.0  # degrees, positive tips the head to the screen right
+    head_dy: float = 0.0  # a nod: the head dips this far (design units)
     body_angle: float = 0.0
     body_dx: float = 0.0
     body_dy: float = 0.0
@@ -446,10 +458,20 @@ class SingerRenderer:
         self.arm_amount = 0.0
         self.beats, self.last_phase = 0.0, None
         self.next_blink, self.blink_at = 1.5 + self.rng.random() * 2.0, -1.0
-        self.nod = 0.0
         self.hair, self.hair_velocity, self.last_head = 0.0, 0.0, 0.0
         self.sway = 0.0
         self.sing, self.push, self.last_sung = 0.0, 0.0, -10.0
+        self.choreography = Choreography(len(DANCE_POSES), seed=seed)
+        self.gaze = Gaze(seed=seed + 5)
+        self.emphasis = EmphasisDetector(fps=fps)
+        self.nod_spring = Spring(frequency=2.2, damping=0.5)  # dips on a stressed syllable, bounces back
+        self.lift = Spring(frequency=1.2, damping=1.0)  # the head and brows lift as a phrase starts
+        self.lift_until = -1.0
+        self.head_drift = Drift(seed=seed + 7, amplitude=1.4)
+        self.body_drift = Drift(seed=seed + 8, amplitude=3.0, speed=0.8)
+        self.turn = Spring(frequency=1.4, damping=1.0)  # the head follows the eyes, slower than they move
+        self.upper = Spring(frequency=3.0, damping=0.9, value=REST_ARM[0])  # the arm leads ...
+        self.fore = Spring(frequency=2.3, damping=0.72, value=REST_ARM[1])  # ... the forearm follows through
 
     # planning ---------------------------------------------------------------------------------------
 
@@ -494,14 +516,33 @@ class SingerRenderer:
         self.arm_amount += (target_amount - self.arm_amount) * (1 - 0.93 ** (30 * dt))
         self.sway += ((groove if dancing else 0.0) - self.sway) * (1 - 0.93 ** (30 * dt))
 
-        pose = self.pose_at(self.beats, self.sway, self.arm_amount, self.t)
-        if not dancing:
-            self.nod += (mouth - self.nod) * (1 - 0.7 ** (30 * dt))
-            pose = replace(pose, head_angle=pose.head_angle + 2.5 * self.nod * math.sin(2 * math.pi * 0.9 * self.t))
+        pose = self.pose_at(self.beats, self.sway, self.arm_amount, self.t, self.choreography)
+        upper, fore, hand = pose.arm
+        pose = replace(pose, arm=(self.upper.step(upper, dt), self.fore.step(fore, dt), hand))
+
+        # the voice: a nod on stressed syllables, a lift of head and brows as a phrase starts
+        strength = self.emphasis.step(mouth)
+        if strength:
+            self.nod_spring.velocity += strength * (4.0 if dancing else 7.0)
+            if self.emphasis.phrase_start:
+                self.lift_until = self.t + 0.7
+        lift = self.lift.step(1.0 if self.t < self.lift_until else 0.0, dt)
+        nod = self.nod_spring.step(0.0, dt)
+
+        # the eyes: hold, glance aside, come back; the head turns a little with them
+        gx, gy = self.gaze.step(dt, speaking=mouth >= 0.07)
+        face = list(self.face)  # offsets on top of the eased expression, never stored into it
+        face[0] += 3.0 * lift  # brows up a touch while the phrase starts
+        face[6] += 0.8 * gx
+        face[7] += 0.6 * gy
+        turn = self.turn.step(2.0 * gx, dt)
+        pose = replace(pose, head_angle=pose.head_angle + turn + self.head_drift.at(self.t) + 1.5 * nod,
+                       head_dy=12.0 * nod - 5.0 * lift,
+                       body_dx=pose.body_dx + self.body_drift.at(self.t))  # fmt: skip
         head = pose.head_angle + pose.body_angle + self.face[8]
         self._spring(head, dt)
         self.t += dt
-        return replace(pose, face=tuple(self.face), mouth=tuple(self.mouth), blink=blink, hair_swing=self.hair,
+        return replace(pose, face=tuple(face), mouth=tuple(self.mouth), blink=blink, hair_swing=self.hair,
                        sing=self.sing, push=self.push)  # fmt: skip
 
     def _spring(self, head_angle: float, dt: float) -> None:
@@ -516,7 +557,8 @@ class SingerRenderer:
         self.last_head = head_angle
 
     @staticmethod
-    def pose_at(beats: float, sway: float, arm_amount: float, t: float = 0.0) -> Pose:
+    def pose_at(beats: float, sway: float, arm_amount: float, t: float = 0.0,
+                choreography: Choreography | None = None) -> Pose:  # fmt: skip
         """The body at a beat count: a sway per two beats, a soft dip on every beat, the free arm's pose."""
         swing = math.sin(math.pi * beats)
         breathe = 1.5 * math.sin(2 * math.pi * t / 4.0)
@@ -525,7 +567,7 @@ class SingerRenderer:
             body_angle=2.0 * sway * swing,
             body_dx=4.0 * sway * swing,
             body_dy=5.0 * sway * (1 - math.cos(2 * math.pi * beats)) / 2 + breathe,
-            arm=arm_at(beats, arm_amount) if arm_amount > 0 else REST_ARM,
+            arm=arm_at(beats, arm_amount, choreography) if arm_amount > 0 else REST_ARM,
         )
 
     def still(self, expression: str = "happy", mouth_shape: str | None = None, blink: float = 0.0,
@@ -558,7 +600,8 @@ class SingerRenderer:
         base = translation(size[0] / 2, size[1] - (REFERENCE[1] - FIGURE_DROP) * scale) @ np.diag([scale, scale, 1.0])
         pen = Pen(image, base, scale)
         body = translation(pose.body_dx, pose.body_dy) @ rotation(pose.body_angle, self.HIP)
-        head = rotation(pose.head_angle + pose.face[8], self.NECK) @ scaling(HEAD_SCALE, self.CHIN)
+        head = (translation(0.0, pose.head_dy) @ rotation(pose.head_angle + pose.face[8], self.NECK)
+                @ scaling(HEAD_SCALE, self.CHIN))  # fmt: skip
         with pen.transformed(body):
             with pen.transformed(head):
                 self._hair_back(pen, pose)

@@ -91,14 +91,15 @@ def test_no_hand_or_microphone_leaves_the_frame_across_a_beat_sweep(key):
             assert max(int(edge.max()) for edge in edges) == 0, (key, beats, sing)
 
 
-def test_the_robot_teammates_render_exactly_as_before_the_singers():
-    """Frames recorded from the code before the singers were wired into humanoid-perform."""
+def test_the_dancing_robot_renders_exactly_as_before_the_singers():
+    """Frames recorded from the code before the singers were wired into humanoid-perform. Byte's speaking
+    motion was redesigned since (tests/test_motion.py), so only the dancing robot, Tempo, is pinned here."""
     words = [{"text": "one two", "start": 0.5, "end": 1.4, "words": [{"word": "one", "start": 0.5, "end": 0.8},
                                                                     {"word": "two", "start": 1.0, "end": 1.4}]}]  # fmt: skip
     tone = 0.2 * np.sin(np.arange(2 * RATE) / RATE * 2 * np.pi * 220).astype(np.float32)
     audio = click_track(100, 0.0, 2.0) + tone
     reference = np.load(REFERENCE)
-    for teammate, options in ((BYTE, {}), (TEMPO, {"words": words, "bpm": 100})):
+    for teammate, options in ((TEMPO, {"words": words, "bpm": 100}),):
         frames = list(performance_frames(plan_performance(teammate, audio, RATE, 30, **options), teammate, (180, 240)))
         got = np.stack([frames[i] for i in (10, 35, 59)]).astype(np.int16)
         expected = reference[teammate.key].astype(np.int16)

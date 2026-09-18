@@ -18,6 +18,15 @@
 - A teammate has a `character` (how clips draw it) and an optional Belarusian `native_name`; a teammate
   file `based_on` a singer is drawn as that singer. Byte's and Tempo's clips are unchanged, checked
   frame by frame against frames recorded before the change.
+- More natural motion (`humanoid_companion.motion`). Byte no longer rocks its head on a fixed 1.7 Hz
+  sine while it speaks: it nods on the syllables the voice leans on, settles into a new tilt when a
+  phrase starts, breathes and drifts in the pauses, and its antenna trails the head. Alesia and Maks
+  dance in a seeded order of poses (2 or 4 beats each, never the same pose twice in a row, a rest now
+  and then) instead of one loop of four, with follow-through in the arm; they nod on stressed syllables,
+  lift head and brows as a phrase starts, and their eyes hold a look and glance aside. Measured in
+  `tests/test_motion.py`: on a real 189 s narration the strongest single rhythm in Byte's head motion
+  fell from 41% to 3% of it, and the share of pause frames with a frozen head from 59% to 22%. Tempo's
+  dance is unchanged, still checked frame by frame.
 
 ## 0.1.0 (unreleased)
 

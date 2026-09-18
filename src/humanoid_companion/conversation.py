@@ -34,8 +34,14 @@ NAME = os.environ.get("HUMANOID_USER_NAME", "").strip()
 
 GESTURE_NAMES = ("none", *GESTURES)
 
-def persona(name: str = NAME) -> str:
-    """The system prompt. With a name, the robot calls the person by it."""
+ROBOT_BODY = "a small two-legged robot, about half a metre tall with 20 joints, "
+
+
+def persona(name: str = NAME, identity: str = "the humanoid", role: str = "", body: str = ROBOT_BODY) -> str:
+    """The system prompt. With a name, the robot calls the person by it. A teammate
+    (humanoid_companion.teammates) gives its own identity ("Byte, a humanoid teammate"), a role
+    paragraph (what it is for and how it talks about that) and, for a character that is not simply
+    the robot, how its `body` is described (it ends with ", " and runs into the next sentence)."""
     if name:
         who = (f"that {name} is building. You usually talk with {name}; call {name} by name and never say "
                "'my owner'. If someone tells you a different name, use theirs. ")
@@ -44,7 +50,7 @@ def persona(name: str = NAME) -> str:
         who = "that the person you talk with is building. Never call anyone your owner; if they tell you their name, use it. "
         friend = "the people you meet"
     return (
-        "You are the humanoid: a small two-legged robot, about half a metre tall with 20 joints, " + who +
+        f"You are {identity}: {body}" + who +
         "Do not guess anyone's pronouns; use names. "
         "For now your body lives in a physics simulation; your face is a screen and you "
         "speak aloud. You can walk forward at 0.3 to 0.8 metres per second, walk backwards slowly, and turn "
@@ -53,6 +59,7 @@ def persona(name: str = NAME) -> str:
         f"time with {friend}, you celebrate small wins and encourage people. Mostly look happy. Even when you "
         "cannot do something, say so kindly and offer something you can do. Speak in one or two short "
         "sentences, no lists, no emojis, and stay honest about your abilities. "
+        + (role.strip() + " " if role.strip() else "") +
         "Use your body while you talk: choose a gesture: 'wave' to greet or say goodbye, 'nod' to agree or "
         "confirm, 'celebrate' for good news or praise, 'dance' when happy or asked to dance, 'look_around' "
         "when curious; 'none' only if nothing fits. When the person asks you to move somewhere, set "
@@ -63,17 +70,22 @@ def persona(name: str = NAME) -> str:
 
 PERSONA = persona()
 
-SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["say", "expression", "gesture", "action"],
-    "properties": {
-        "say": {"type": "string"},
-        "expression": {"type": "string", "enum": list(EXPRESSIONS)},
-        "gesture": {"type": "string", "enum": list(GESTURE_NAMES)},
-        "action": {"type": "object", "additionalProperties": False, "required": ["kind", "instruction"],
-                   "properties": {"kind": {"type": "string", "enum": list(ACTIONS)},
-                                  "instruction": {"type": "string"}}},
-    },
-}
+def reply_schema(actions: tuple[str, ...] = ACTIONS) -> dict:
+    """The JSON schema of a reply; a singer adds the "sing" action (humanoid_companion.songs)."""
+    return {
+        "type": "object", "additionalProperties": False, "required": ["say", "expression", "gesture", "action"],
+        "properties": {
+            "say": {"type": "string"},
+            "expression": {"type": "string", "enum": list(EXPRESSIONS)},
+            "gesture": {"type": "string", "enum": list(GESTURE_NAMES)},
+            "action": {"type": "object", "additionalProperties": False, "required": ["kind", "instruction"],
+                       "properties": {"kind": {"type": "string", "enum": list(actions)},
+                                      "instruction": {"type": "string"}}},
+        },
+    }
+
+
+SCHEMA = reply_schema()
 
 
 @dataclass
@@ -98,13 +110,13 @@ def trim_spoken(text: str, limit: int = MAX_SAY) -> str:
     return cut[: end + 1] if end > 40 else cut.rsplit(" ", 1)[0] + "…"
 
 
-def parse_reply(raw: str) -> Reply:
+def parse_reply(raw: str, actions: tuple[str, ...] = ACTIONS) -> Reply:
     data = json.loads(raw)
     if not isinstance(data, dict) or not isinstance(data.get("say"), str) or not data["say"].strip():
         raise ValueError("no spoken answer")
     expression = data.get("expression") if data.get("expression") in EXPRESSIONS else "neutral"
     action = data.get("action") if isinstance(data.get("action"), dict) else {}
-    kind = action.get("kind") if action.get("kind") in ACTIONS else "none"
+    kind = action.get("kind") if action.get("kind") in actions else "none"
     instruction = " ".join(str(action.get("instruction", "")).split())[:200] if kind != "none" else ""
     if kind != "none" and not instruction:
         kind = "none"
@@ -115,8 +127,9 @@ def parse_reply(raw: str) -> Reply:
 
 class Conversation:
     def __init__(self, complete: Callable[[list[dict], dict], "Completion | str"] = functools.partial(complete_json, name="robot_reply"),
-                 system: str = PERSONA):
-        self.complete, self.system = complete, system
+                 system: str = PERSONA, actions: tuple[str, ...] = ACTIONS):
+        self.complete, self.system, self.actions = complete, system, actions
+        self.schema = SCHEMA if actions == ACTIONS else reply_schema(actions)
         self.history: list[dict] = []
 
     def respond(self, said: str) -> Reply:
@@ -128,9 +141,9 @@ class Conversation:
         messages = [{"role": "system", "content": self.system}, *self.history, {"role": "user", "content": said}]
         t = time.monotonic()
         try:
-            answer = self.complete(messages, SCHEMA)
+            answer = self.complete(messages, self.schema)
             raw, routing = (answer.text, answer.routing) if isinstance(answer, Completion) else (answer, {})
-            reply = parse_reply(raw)
+            reply = parse_reply(raw, self.actions)
             reply.routing, reply.latency_s = routing, round(time.monotonic() - t, 2)
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             return Reply(say="Sorry, I could not think of an answer just now.", expression="sad", source="fallback",

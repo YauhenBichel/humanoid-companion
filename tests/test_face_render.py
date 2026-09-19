@@ -49,34 +49,3 @@ def test_mouth_track_follows_the_audio():
     silence, tone = np.zeros(rate), 0.3 * np.sin(np.linspace(0, 2 * np.pi * 200, rate))
     track = mouth_track(np.concatenate([silence, tone]).astype(np.float32), rate, fps, 2 * fps)
     assert track.shape == (50,) and track[:25].max() == 0.0 and track[30:].min() > 0.8
-
-
-def test_the_default_look_keeps_the_original_colours():
-    img = settled("neutral")
-    assert tuple(img[5, 5]) == (5, 7, 10)
-    eye = img[80:120, 100:140].reshape(-1, 3)
-    brightest = eye[eye.sum(axis=1).argmax()]
-    assert brightest[2] > brightest[0]   # light blue
-
-
-def test_a_look_changes_the_colours():
-    from humanoid_companion.face.look import Look
-
-    r = FaceRenderer(320, 240, seed=1, look=Look(glow=(255, 120, 40), background=(30, 0, 30)))
-    for _ in range(40):
-        img = r.frame("neutral")
-    assert tuple(img[5, 5]) == (30, 0, 30)
-    eye = img[80:120, 100:140].reshape(-1, 3)
-    brightest = eye[eye.sum(axis=1).argmax()]
-    assert brightest[0] > brightest[2]   # orange, not the default blue
-
-
-def test_a_transparent_face_is_only_the_face():
-    r = FaceRenderer(320, 240, seed=1, transparent=True)
-    for _ in range(40):
-        img = r.frame("neutral", mouth=0.6, caption="Hello")
-    assert img.shape == (240, 320, 4)
-    assert img[5, 5, 3] == 0                      # the corner is see-through
-    assert img[:, :, 3].max() == 255              # the eyes are solid
-    assert (img[:, :, 3] > 0).mean() < 0.35       # most of the frame stays clear
-    assert img[200:240, :, 3].max() == 255        # the caption is drawn

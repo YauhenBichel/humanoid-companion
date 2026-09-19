@@ -11,8 +11,6 @@ dist/
 /demo/
 *.mp4
 !docs/media/*.mp4
-# design drafts reviewed with the owner; the approved sheets live in docs/media
-/docs/media/drafts/
 /sim-in-the-loop.json
 /demo.json
 /brain-smoke.md

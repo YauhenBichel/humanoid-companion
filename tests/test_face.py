@@ -113,14 +113,3 @@ def test_bad_input_is_rejected(face):
     with pytest.raises(ValueError):
         face.set_expression("evil")
     assert face.say(b"x", expression="evil")  # an unknown expression while speaking falls back to neutral
-
-
-def test_the_page_carries_the_look_and_title():
-    from humanoid_companion.face.look import Look
-    from humanoid_companion.face.server import page_html
-
-    plain = page_html().decode()
-    assert '"glow": "#7fd8ff"' in plain and '"shadow": "#3fb6ff"' in plain and "<title>Humanoid face</title>" in plain
-    themed = page_html(Look(glow=(255, 150, 220), shadow=None), "Tempo, humanoid teammate").decode()
-    assert '"glow": "#ff96dc"' in themed and '"shadow": "#ff96dc"' in themed
-    assert "<title>Tempo, humanoid teammate</title>" in themed and "/*LOOK*/" not in themed

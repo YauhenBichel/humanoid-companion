@@ -172,29 +172,3 @@ def test_compose_joins_the_turn_videos(tmp_path, monkeypatch):
                            capture_output=True, text=True, check=True)
     assert 3.0 <= float(json.loads(probe.stdout)["format"]["duration"]) <= 4.0   # 2 x (1.2 + 0.5)
     assert not list(tmp_path.glob("_*"))
-
-
-def test_tempo_answers_then_sings_a_song_from_the_library(tmp_path, monkeypatch):
-    from humanoid_companion import talk
-    from humanoid_companion.run_sim import training_model
-    from test_songs import make_library
-
-    make_library(tmp_path / "songs")
-    voices = []
-    monkeypatch.setattr(voice, "speak", lambda text, lang="en", **options: voices.append(options) or TONE)
-    args = argparse.Namespace(port=0, record=tmp_path / "rec", policy=None, speed_sweep=None, speed_cap=0.5,
-                              mic=False, speaker=False, teammate="tempo", songs=tmp_path / "songs")  # fmt: skip
-    robot = talk.Robot(args)
-    assert "Songs you can sing" in robot.conv.system and "You are Tempo" in robot.conv.system
-    answer = {"say": "With pleasure!", "expression": "happy", "gesture": "none",
-              "action": {"kind": "sing", "instruction": "sun-shines"}}  # fmt: skip
-    robot.conv.complete = lambda m, s: json.dumps(answer)
-    robot.body = talk.Body(Stand(), training_model(), robot.face, keep_frames=False)
-    try:
-        robot.turn("sing the sun song", None)
-    finally:
-        robot.face.stop()
-    song_turn = json.loads((tmp_path / "rec" / "conversation.json").read_text())["turns"][-1]
-    assert voices == [{"voice": "af_bella"}]  # the teammate's own voice
-    assert song_turn["song"] == "sun-shines" and 2.1 < song_turn["seconds"] < 2.3
-    assert song_turn["safety_stops"] == []  # dancing arms while standing: no fall

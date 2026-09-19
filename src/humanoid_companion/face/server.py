@@ -20,8 +20,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from humanoid_companion.face.look import DEFAULT_LOOK, Look
-
 TABLE_FILE = Path(__file__).with_name("expressions.json")
 TABLE = {k: v for k, v in json.loads(TABLE_FILE.read_text()).items() if not k.startswith("_")}
 EXPRESSIONS = tuple(TABLE)
@@ -29,15 +27,13 @@ PAGE = Path(__file__).with_name("face.html")
 MAX_AUDIO = 32  # utterances kept for late or reconnecting pages
 
 
-def page_html(look: Look = DEFAULT_LOOK, title: str = "Humanoid face") -> bytes:
-    """face.html with the shared expression table, the face's colours and the page title put in."""
-    page = PAGE.read_text().replace("/*EXPRESSIONS*/{}", json.dumps(TABLE)).replace("/*LOOK*/{}", json.dumps(look.css()))
-    return page.replace("<title>Humanoid face</title>", f"<title>{title}</title>").encode()
+def page_html() -> bytes:
+    """face.html with the shared expression table put in."""
+    return PAGE.read_text().replace("/*EXPRESSIONS*/{}", json.dumps(TABLE)).encode()
 
 
 class FaceServer:
-    def __init__(self, host: str = "127.0.0.1", port: int = 8765, look: Look = DEFAULT_LOOK, title: str = "Humanoid face"):
-        self.look, self.title = look, title
+    def __init__(self, host: str = "127.0.0.1", port: int = 8765):
         self._subscribers: list[queue.Queue] = []
         self._audio: dict[str, bytes] = {}
         self._played: dict[str, threading.Event] = {}
@@ -133,7 +129,7 @@ class FaceServer:
             def do_GET(self):
                 path = urlsplit(self.path).path  # "/?kiosk=1" is the page too
                 if path == "/":
-                    self._send(200, page_html(face.look, face.title), "text/html; charset=utf-8")
+                    self._send(200, page_html(), "text/html; charset=utf-8")
                 elif path.startswith("/audio/") and path.endswith(".wav"):
                     wav = face._audio.get(path[len("/audio/"):-len(".wav")])
                     self._send(200, wav, "audio/wav") if wav else self._send(404, b"no such utterance", "text/plain")

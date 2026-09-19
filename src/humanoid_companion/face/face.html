@@ -5,13 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Humanoid face</title>
 <style>
-  :root { --background: #05070a; --glow: #7fd8ff; --caption: #cfe9ff; }
-  html, body { margin: 0; height: 100%; background: var(--background); overflow: hidden; font-family: system-ui, sans-serif; }
+  html, body { margin: 0; height: 100%; background: #05070a; overflow: hidden; font-family: system-ui, sans-serif; }
   canvas { display: block; width: 100vw; height: 100vh; }
-  #caption { position: fixed; left: 0; right: 0; bottom: 6vh; text-align: center; color: var(--caption);
+  #caption { position: fixed; left: 0; right: 0; bottom: 6vh; text-align: center; color: #cfe9ff;
              font-size: clamp(14px, 3.2vw, 28px); padding: 0 6vw; opacity: 0; transition: opacity .3s; }
   #wake { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-          color: var(--glow); font-size: clamp(14px, 3vw, 24px); background: rgba(5,7,10,.85); cursor: pointer; }
+          color: #7fd8ff; font-size: clamp(14px, 3vw, 24px); background: rgba(5,7,10,.85); cursor: pointer; }
   #status { position: fixed; top: 10px; right: 14px; color: #3a5566; font-size: 12px; }
   /* ?view=robot: face on the left, the simulated body's camera on the right */
   body.robot canvas { width: 50vw; }
@@ -34,9 +33,6 @@
 // When an utterance finishes, the page POSTs /played {id} so the runtime knows it may listen again.
 // The expression table lives in expressions.json (shared with face/render.py); the server puts it here.
 const EXPRESSIONS = /*EXPRESSIONS*/{};
-// The face's colours (face/look.py; a teammate brings its own). The defaults are the original face.
-const LOOK = Object.assign({glow: "#7fd8ff", background: "#05070a", caption: "#cfe9ff", shadow: "#3fb6ff"}, /*LOOK*/{});
-for (const key of ["glow", "background", "caption"]) document.documentElement.style.setProperty(`--${key}`, LOOK[key]);
 const c = document.getElementById("c"), g = c.getContext("2d");
 const captionEl = document.getElementById("caption"), statusEl = document.getElementById("status");
 let target = EXPRESSIONS.neutral, cur = {...target}, name = "neutral";
@@ -88,9 +84,9 @@ function frame(t) {
   mouthOpen = lerp(mouthOpen, loudness(), 0.5);
 
   const W = c.width, H = c.height, u = Math.min(W, H) / 10;
-  g.fillStyle = LOOK.background; g.fillRect(0, 0, W, H);
-  g.fillStyle = g.strokeStyle = LOOK.glow; g.lineCap = "round";
-  g.shadowColor = LOOK.shadow; g.shadowBlur = u * 0.6;
+  g.fillStyle = "#05070a"; g.fillRect(0, 0, W, H);
+  g.fillStyle = g.strokeStyle = "#7fd8ff"; g.lineCap = "round";
+  g.shadowColor = "#3fb6ff"; g.shadowBlur = u * 0.6;
   const eyeH = u * 1.6 * cur.open * (1 - blink * (name === "sleeping" ? 0 : 1)), eyeW = u * 1.2 * cur.w;
   for (const side of [-1, 1]) {
     const x = W / 2 + side * u * 2.2 + gaze[0] * u, y = H * 0.42 + gaze[1] * u;

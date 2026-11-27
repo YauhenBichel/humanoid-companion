@@ -151,6 +151,28 @@ uv run humanoid-talk --open --policy exports/baseline/policy.npz --speed-sweep s
 `--randomize` trains the hardened environment (pushes, latency, encoder offsets, randomized
 friction, masses and gains) meant for a real robot.
 
+## FAQ
+
+### Do I need a real robot?
+
+No. Today the body is a simulated ROBOTIS OP3 in MuJoCo. Running the real code on a 50 cm robot is on the [roadmap](#roadmap), not done.
+
+### Do I need a GPU?
+
+No, not to run it. The bundled walking policy runs on the CPU. A GPU only helps if you train your own policy.
+
+### Does it send my data anywhere?
+
+Only to the servers you configure. Your text goes to your chat server, and speech goes to your speech and transcription servers. By default all three are on `127.0.0.1`. If you point `HUMANOID_LLM_BASE_URL` at a hosted API, your messages go there.
+
+### Can the language model make the robot do something unsafe?
+
+The model can only ask. Its answer is parsed, validated and clamped to the trained command ranges and a speed cap, and stop words never reach it. Any failure means "stand still". This is simulation only; it is not a safety certification for a real robot.
+
+### Which language models work?
+
+Any server with an OpenAI-compatible chat API that can answer in a JSON schema, such as Ollama, llama.cpp or vLLM.
+
 ## Roadmap
 
 1. Hardened policy (domain randomization) and its sim-to-sim numbers.
